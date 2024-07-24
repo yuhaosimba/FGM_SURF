@@ -1,0 +1,34 @@
+example MD simulation
+
+#该文件格式以及可用命令参见https://spongemm.cn/文档/CudaSPONGE文档/文件格式
+
+mode = NVT
+default_in_file_prefix = cu_ball/cuball
+
+cutoff = 8
+
+dt = 2e-3
+step_limit = 1000
+write_information_interval = 1
+
+thermostat = langevin
+middle_langevin_gamma = 10
+
+restrain_atom_id = cu_ball/cuball_restrain.txt
+restrain_coordinate_in_file = cu_ball/cuball_ref_mask.txt
+
+constrain_mode = SHAKE
+
+coordinate_in_file =  cu_ball/cuball_coordinate.txt
+velocity_in_file =  cu_ball/cuball_velocity.txt
+
+# FGM-SURFACE模块输入参数
+
+fgm_surf_mesh_in_file = FGM_info/Potential_Matrix.txt  # FEM网格信息
+fgm_surf_sphere_in_file = FGM_info/unit_492_shpere.txt # 采样球面结构信息
+
+ # 等势面形状信息，球形=1，平面=2，根据原子VDW半径形状=3，无=0；
+eq_surf_shape_in_file = FGM_info/eq_surface_shape.txt
+
+# 起始电荷坐标，本模块要求不带电荷原子序号均在带电原子前
+charge_start = 4934
