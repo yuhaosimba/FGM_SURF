@@ -68,8 +68,8 @@ int main(int argc, char *argv[])
         Main_Iteration();
         Main_Print();
     }
-    fgm_surf.Potential_file_saver("C:\\Users\\15653\\Desktop\\FGM-Python-Debug\\CSR-Matrix\\result.txt"); // DEBUG
-    fgm_surf.Sphere_saver("C:\\Users\\15653\\Desktop\\FGM-Python-Debug\\unit_492Sphere\\result.txt"); // DEBUG
+    //fgm_surf.Potential_file_saver("./Phi_result.txt"); // DEBUG
+    //fgm_surf.Sphere_saver("./Sphere_shape_result.txt"); // DEBUG
     Main_Clear();
     return 0;
 }
