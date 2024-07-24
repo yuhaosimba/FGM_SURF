@@ -1,6 +1,6 @@
 #### Finite-element-mesh with Green-integral Method for equal-potential SURFace Calculations for SPONGE （FGM-SURF）
 
-<img src="Picture/MD_frame.png" alt="image-20240724165906023" style="zoom: 25%;" /><img src="Picture/2D_potential.png" alt="image-20240724165944854" style="zoom: 50%;" />
+<img src="Picture/FGM_Surf_test_system.gif" alt="FGM_Surf_test_system" style="zoom: 67%;" /><img src="Picture/2D_potential.png" alt="image-20240724165944854" style="zoom: 50%;" />
 
 本模块基于有限元网格方法与格林曲面积分，用于计算包含不规则等势面3DPBC体系的静电作用，用于分子动力学模拟软件SPONGE中。
 
