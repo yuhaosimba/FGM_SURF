@@ -22,11 +22,9 @@ make install
 ./SPONGE
 ```
 
-#### 可能的bug:
-
-LJ模块的pme部分可能未完全屏蔽。
-
 #### to-do list
+
+- FGM能量计算
 
 - 适应不同形状的等势面描述
 
