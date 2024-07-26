@@ -157,7 +157,8 @@ struct LENNARD_JONES_INFORMATION
 
     //获得能量
     float Get_Energy(const UNSIGNED_INT_VECTOR *uint_crd, const ATOM_GROUP *nl, const float pme_beta, const float *charge, float *pme_direct_energy, int is_download = 1);
-
+    //获得能量，屏蔽PME
+    float Get_Energy(const UNSIGNED_INT_VECTOR* uint_crd, const ATOM_GROUP* nl, int is_download);
     //更新体积
     void Update_Volume(VECTOR box_length);
     
@@ -169,7 +170,7 @@ struct LENNARD_JONES_INFORMATION
     void Energy_Device_To_Host();
 
     void LJ_NOPME_Direct_Force_With_Atom_Energy_And_Virial(const int atom_numbers, const UNSIGNED_INT_VECTOR* uint_crd, const float* charge, VECTOR* frc,
-        const ATOM_GROUP* nl, const float pme_beta, const int need_atom_energy, float* atom_energy,
-        const int need_virial, float* atom_lj_virial, float* atom_direct_pme_energy);
+        const ATOM_GROUP* nl,  const int need_atom_energy, float* atom_energy,
+        const int need_virial, float* atom_lj_virial);
 };
 #endif //LENNARD_JONES_FORCE_CUH(Lennard_Jones_force.cuh)

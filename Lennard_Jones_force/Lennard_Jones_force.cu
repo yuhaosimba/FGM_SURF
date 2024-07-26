@@ -110,6 +110,64 @@ static __global__ void Lennard_Jones_And_Direct_Coulomb_CUDA(
     }
 }
 
+template<bool need_force, bool need_energy, bool need_virial>
+static __global__ void Lennard_Jones_CUDA(
+    const int atom_numbers, const ATOM_GROUP* nl,
+    const UINT_VECTOR_LJ_TYPE* uint_crd, const VECTOR boxlength,
+    const float* LJ_type_A, const float* LJ_type_B, const float cutoff,
+    VECTOR* frc, float* atom_energy, float* atom_lj_virial)
+{
+    int atom_i = blockDim.y * blockIdx.x + threadIdx.y;
+    if (atom_i < atom_numbers)
+    {
+        ATOM_GROUP nl_i = nl[atom_i];
+        UINT_VECTOR_LJ_TYPE r1 = uint_crd[atom_i];
+        VECTOR frc_record = { 0., 0., 0. };
+        float virial_lj = 0.;
+        float energy_lj = 0.;
+        for (int j = threadIdx.x; j < nl_i.atom_numbers; j += blockDim.x)
+        {
+            int atom_j = nl_i.atom_serial[j];
+            UINT_VECTOR_LJ_TYPE r2 = uint_crd[atom_j];
+            VECTOR dr = Get_Periodic_Displacement(r2, r1, boxlength);
+            float dr_abs = norm3df(dr.x, dr.y, dr.z);
+            if (dr_abs < cutoff)
+            {
+                int atom_pair_LJ_type = Get_LJ_Type(r1.LJ_type, r2.LJ_type);
+                float A = LJ_type_A[atom_pair_LJ_type];
+                float B = LJ_type_B[atom_pair_LJ_type];
+                if (need_force)
+                {
+                    float frc_abs = Get_LJ_Force(r1, r2, dr_abs, A, B);
+                    VECTOR frc_lin = frc_abs * dr;
+                    frc_record = frc_record + frc_lin;
+                    atomicAdd(frc + atom_j, -frc_lin);
+                }
+                if (need_energy)
+                {
+                    energy_lj += Get_LJ_Energy(r1, r2, dr_abs, A, B);
+                }
+                if (need_virial)
+                {
+                    virial_lj += Get_LJ_Virial(r1, r2, dr_abs, A, B);
+                }
+            }
+        }
+        if (need_force)
+        {
+            Warp_Sum_To(frc + atom_i, frc_record);
+        }
+        if (need_energy)
+        {
+            Warp_Sum_To(atom_energy + atom_i, energy_lj);
+        }
+        if (need_virial)
+        {
+            Warp_Sum_To(atom_lj_virial + atom_i, virial_lj);
+        }
+    }
+}
+
 void LENNARD_JONES_INFORMATION::LJ_Malloc()
 {
     Malloc_Safely((void**)&h_LJ_energy_atom, sizeof(float)*atom_numbers);
@@ -410,52 +468,43 @@ void LENNARD_JONES_INFORMATION::LJ_PME_Direct_Force_With_Atom_Energy_And_Virial(
 
 
 void LENNARD_JONES_INFORMATION::LJ_NOPME_Direct_Force_With_Atom_Energy_And_Virial(const int atom_numbers, const UNSIGNED_INT_VECTOR* uint_crd, const float* charge, VECTOR* frc,
-    const ATOM_GROUP* nl, const float pme_beta, const int need_atom_energy, float* atom_energy,
-    const int need_virial, float* atom_lj_virial, float* atom_direct_pme_energy)
+    const ATOM_GROUP* nl, const int need_atom_energy, float* atom_energy,
+    const int need_virial, float* atom_lj_virial)
 {
     if (is_initialized)
     {
         Copy_Crd_And_Charge_To_New_Crd << <(this->atom_numbers + 1023) / 1024, 1024 >> > (this->atom_numbers, uint_crd, uint_crd_with_LJ, charge);
-        if (atom_numbers == 0)
-        {
-            if (need_atom_energy || need_virial)
-                cudaMemset(atom_direct_pme_energy, 0, sizeof(float) * this->atom_numbers);
-            return;
-        }
         if (!need_atom_energy && !need_virial)
         {
-            Lennard_Jones_And_Direct_Coulomb_CUDA<true, false, false, false> << < (atom_numbers + 31) / 32, thread_LJ >> >
+            Lennard_Jones_CUDA<true, false, false> << < (atom_numbers + 31) / 32, thread_LJ >> >
                 (atom_numbers, nl,
                     uint_crd_with_LJ, uint_dr_to_dr_cof,
                     d_LJ_A, d_LJ_B, cutoff,
-                    frc, pme_beta, atom_energy, atom_lj_virial, atom_direct_pme_energy);
+                    frc,  atom_energy, atom_lj_virial);
         }
         else if (need_atom_energy && !need_virial)
         {
-            cudaMemset(atom_direct_pme_energy, 0, sizeof(float) * this->atom_numbers);
-            Lennard_Jones_And_Direct_Coulomb_CUDA<true, true, false, false> << < (atom_numbers + 31) / 32, thread_LJ >> >
+            Lennard_Jones_CUDA<true, true, false> << < (atom_numbers + 31) / 32, thread_LJ >> >
                 (atom_numbers, nl,
                     uint_crd_with_LJ, uint_dr_to_dr_cof,
                     d_LJ_A, d_LJ_B, cutoff,
-                    frc, pme_beta, atom_energy, atom_lj_virial, atom_direct_pme_energy);
+                    frc, atom_energy, atom_lj_virial);
         }
         else if (!need_atom_energy && need_virial)
         {
-            cudaMemset(atom_direct_pme_energy, 0, sizeof(float) * this->atom_numbers);
-            Lennard_Jones_And_Direct_Coulomb_CUDA<true, false, true, false> << < (atom_numbers + 31) / 32, thread_LJ >> >
+            Lennard_Jones_CUDA<true, false, true> << < (atom_numbers + 31) / 32, thread_LJ >> >
                 (atom_numbers, nl,
                     uint_crd_with_LJ, uint_dr_to_dr_cof,
                     d_LJ_A, d_LJ_B, cutoff,
-                    frc, pme_beta, atom_energy, atom_lj_virial, atom_direct_pme_energy);
+                    frc, atom_energy, atom_lj_virial);
         }
         else
         {
-            cudaMemset(atom_direct_pme_energy, 0, sizeof(float) * this->atom_numbers);
-            Lennard_Jones_And_Direct_Coulomb_CUDA<true, true, true, false> << <(atom_numbers + 31) / 32, thread_LJ >> >
+            Lennard_Jones_CUDA<true, true, true> << <(atom_numbers + 31) / 32, thread_LJ >> >
                 (atom_numbers, nl,
                     uint_crd_with_LJ, uint_dr_to_dr_cof,
                     d_LJ_A, d_LJ_B, cutoff,
-                    frc, pme_beta, atom_energy, atom_lj_virial, atom_direct_pme_energy);
+                    frc, atom_energy, atom_lj_virial);
         }
     }
 }
@@ -470,7 +519,7 @@ void LENNARD_JONES_INFORMATION::LJ_Force_With_Atom_Energy_And_Virial(const int a
         Copy_Crd_And_Charge_To_New_Crd << <(unsigned int)ceilf((float)atom_numbers / 1024), 1024 >> >(atom_numbers, uint_crd, uint_crd_with_LJ, charge);
         if (!need_atom_energy && !need_virial)
         {
-            Lennard_Jones_And_Direct_Coulomb_CUDA<true, false, false, false> << < (atom_numbers + 31) / 32, thread_LJ >> >
+            Lennard_Jones_And_Direct_Coulomb_CUDA<true, false, false, true> << < (atom_numbers + 31) / 32, thread_LJ >> >
                 (atom_numbers, nl,
                     uint_crd_with_LJ, uint_dr_to_dr_cof,
                     d_LJ_A, d_LJ_B, cutoff,
@@ -479,7 +528,7 @@ void LENNARD_JONES_INFORMATION::LJ_Force_With_Atom_Energy_And_Virial(const int a
         else if (need_atom_energy && !need_virial)
         {
             cudaMemset(atom_direct_pme_energy, 0, sizeof(float) * atom_numbers);
-            Lennard_Jones_And_Direct_Coulomb_CUDA<true, true, false, false> << < (atom_numbers + 31) / 32, thread_LJ >> >
+            Lennard_Jones_And_Direct_Coulomb_CUDA<true, true, false, true> << < (atom_numbers + 31) / 32, thread_LJ >> >
                 (atom_numbers, nl,
                     uint_crd_with_LJ, uint_dr_to_dr_cof,
                     d_LJ_A, d_LJ_B, cutoff,
@@ -488,7 +537,7 @@ void LENNARD_JONES_INFORMATION::LJ_Force_With_Atom_Energy_And_Virial(const int a
         else if (!need_atom_energy && need_virial)
         {
             cudaMemset(atom_direct_pme_energy, 0, sizeof(float) * atom_numbers);
-            Lennard_Jones_And_Direct_Coulomb_CUDA<true, false, true, false> << < (atom_numbers + 31) / 32, thread_LJ >> >
+            Lennard_Jones_And_Direct_Coulomb_CUDA<true, false, true, true> << < (atom_numbers + 31) / 32, thread_LJ >> >
                 (atom_numbers, nl,
                     uint_crd_with_LJ, uint_dr_to_dr_cof,
                     d_LJ_A, d_LJ_B, cutoff,
@@ -497,7 +546,7 @@ void LENNARD_JONES_INFORMATION::LJ_Force_With_Atom_Energy_And_Virial(const int a
         else
         {
             cudaMemset(atom_direct_pme_energy, 0, sizeof(float) * atom_numbers);
-            Lennard_Jones_And_Direct_Coulomb_CUDA<true, true, true, false> << <(atom_numbers + 31) / 32, thread_LJ >> >
+            Lennard_Jones_And_Direct_Coulomb_CUDA<true, true, true, true> << <(atom_numbers + 31) / 32, thread_LJ >> >
                 (atom_numbers, nl,
                 uint_crd_with_LJ, uint_dr_to_dr_cof,
                 d_LJ_A, d_LJ_B, cutoff,
@@ -506,20 +555,22 @@ void LENNARD_JONES_INFORMATION::LJ_Force_With_Atom_Energy_And_Virial(const int a
     }
 }
 
-float LENNARD_JONES_INFORMATION::Get_Energy(const UNSIGNED_INT_VECTOR *uint_crd, const ATOM_GROUP *nl, const float pme_beta, const float* charge, float* pme_direct_energy, int is_download)
+
+
+float LENNARD_JONES_INFORMATION::Get_Energy(const UNSIGNED_INT_VECTOR* uint_crd, const ATOM_GROUP* nl, const float pme_beta, const float* charge, float* pme_direct_energy, int is_download)
 {
     if (is_initialized)
     {
-        Copy_Crd_And_Charge_To_New_Crd << <(unsigned int)ceilf((float)atom_numbers / 32), 32 >> >(atom_numbers, uint_crd, uint_crd_with_LJ, charge);
+        Copy_Crd_And_Charge_To_New_Crd << <(unsigned int)ceilf((float)atom_numbers / 32), 32 >> > (atom_numbers, uint_crd, uint_crd_with_LJ, charge);
         Reset_List(d_LJ_energy_atom, 0., atom_numbers, 1024);
         Reset_List << <ceilf((float)atom_numbers / 1024.0f), 1024 >> > (atom_numbers, pme_direct_energy, 0.0f);
-        Lennard_Jones_And_Direct_Coulomb_CUDA<false, true, false, false> << <(atom_numbers + 31) / 32, thread_LJ >> >
+        Lennard_Jones_And_Direct_Coulomb_CUDA<false, true, false, true> << <(atom_numbers + 31) / 32, thread_LJ >> >
             (atom_numbers, nl,
                 uint_crd_with_LJ, uint_dr_to_dr_cof,
                 d_LJ_A, d_LJ_B, cutoff, NULL,
                 pme_beta, d_LJ_energy_atom, NULL, pme_direct_energy);
         Sum_Of_List(d_LJ_energy_atom, d_LJ_energy_sum, atom_numbers);
-        device_add << <1, 1 >> >(d_LJ_energy_sum, long_range_factor / volume);
+        device_add << <1, 1 >> > (d_LJ_energy_sum, long_range_factor / volume);
         if (is_download)
         {
             cudaMemcpy(&h_LJ_energy_sum, this->d_LJ_energy_sum, sizeof(float), cudaMemcpyDeviceToHost);
@@ -532,6 +583,29 @@ float LENNARD_JONES_INFORMATION::Get_Energy(const UNSIGNED_INT_VECTOR *uint_crd,
     }
     return NAN;
 }
+
+float LENNARD_JONES_INFORMATION::Get_Energy(const UNSIGNED_INT_VECTOR* uint_crd, const ATOM_GROUP* nl, int is_download)
+{
+    if (is_initialized)
+    {
+        Copy_Crd_To_New_Crd << <(unsigned int)ceilf((float)atom_numbers / 32), 32 >> > (atom_numbers, uint_crd, uint_crd_with_LJ);
+        Reset_List(d_LJ_energy_atom, 0., atom_numbers, 1024);
+        Lennard_Jones_CUDA<false, true, false> << <(atom_numbers + 31) / 32, thread_LJ >> > (atom_numbers, nl, uint_crd_with_LJ, uint_dr_to_dr_cof, d_LJ_A, d_LJ_B, cutoff, NULL, d_LJ_energy_atom, NULL);
+        Sum_Of_List(d_LJ_energy_atom, d_LJ_energy_sum, atom_numbers);
+        device_add << <1, 1 >> > (d_LJ_energy_sum, long_range_factor / volume);
+        if (is_download)
+        {
+            cudaMemcpy(&h_LJ_energy_sum, this->d_LJ_energy_sum, sizeof(float), cudaMemcpyDeviceToHost);
+            return h_LJ_energy_sum;
+        }
+        else
+        {
+            return 0;
+        }
+    }
+    return NAN;
+}
+
 
 void LENNARD_JONES_INFORMATION::Update_Volume(VECTOR box_length)
 {

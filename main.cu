@@ -19,8 +19,8 @@ NON_BOND_14 nb14;
 CMAP cmap;
 NEIGHBOR_LIST neighbor_list;
 LENNARD_JONES_INFORMATION lj;
-SOLVENT_LENNARD_JONES solvent_lj;
-Particle_Mesh_Ewald pme;
+// SOLVENT_LENNARD_JONES solvent_lj;
+// Particle_Mesh_Ewald pme;
 LENNARD_JONES_NO_PBC_INFORMATION LJ_NOPBC;
 COULOMB_FORCE_NO_PBC_INFORMATION CF_NOPBC;
 GENERALIZED_BORN_INFORMATION gb;
@@ -55,8 +55,6 @@ int main(int argc, char *argv[])
     for (md_info.sys.steps = 1; md_info.sys.steps <= md_info.sys.step_limit; md_info.sys.steps++)
     {
         Main_Calculate_Force();
-        
-       
         // DEBUG FGM procdure
         FGM_CalC_Force_Only_with_Exclude(fgm_surf, md_info.crd, md_info.d_charge,md_info.nb.h_excluded_list_start, md_info.nb.h_excluded_list, md_info.nb.h_excluded_numbers, md_info.frc);
         // DEBUG DEBUG PRINTF
@@ -68,8 +66,8 @@ int main(int argc, char *argv[])
         Main_Iteration();
         Main_Print();
     }
-    //fgm_surf.Potential_file_saver("./Phi_result.txt"); // DEBUG
-    //fgm_surf.Sphere_saver("./Sphere_shape_result.txt"); // DEBUG
+    fgm_surf.Potential_file_saver("C:\\Users\\15653\\Desktop\\FGM-Python-Debug\\CSR-Matrix\\result.txt"); // DEBUG
+    fgm_surf.Sphere_saver("C:\\Users\\15653\\Desktop\\FGM-Python-Debug\\unit_492Sphere\\result.txt"); // DEBUG
     Main_Clear();
     return 0;
 }
@@ -114,8 +112,8 @@ void Main_Initial(int argc, char* argv[])
         lj.Initial(&controller, md_info.nb.cutoff, md_info.sys.box_length);
         lj_soft.Initial(&controller, md_info.nb.cutoff, md_info.sys.box_length);
         pairwise_force.Initial(&controller);
-        solvent_lj.Initial(&controller, &lj, &lj_soft, md_info.res.residue_numbers, md_info.res.h_res_start, md_info.res.h_res_end, md_info.mode >= md_info.NVT);
-        pme.Initial(&controller, md_info.atom_numbers, md_info.sys.box_length, md_info.nb.cutoff);
+     //   solvent_lj.Initial(&controller, &lj, &lj_soft, md_info.res.residue_numbers, md_info.res.h_res_start, md_info.res.h_res_end, md_info.mode >= md_info.NVT);
+     //   pme.Initial(&controller, md_info.atom_numbers, md_info.sys.box_length, md_info.nb.cutoff);
         sits.Initial(&controller, md_info.atom_numbers);
         if (sits.is_initialized)
         {
@@ -269,16 +267,15 @@ void Main_Calculate_Force()
     }
     else
     {
-     lj.LJ_NOPME_Direct_Force_With_Atom_Energy_And_Virial(md_info.atom_numbers - solvent_lj.solvent_numbers, md_info.uint_crd, md_info.d_charge, md_info.frc,
-          neighbor_list.d_nl, pme.beta, md_info.need_potential, md_info.d_atom_energy, md_info.need_pressure, md_info.d_atom_virial, pme.d_direct_atom_energy);
-     lj_soft.LJ_Soft_Core_NOPME_Direct_Force_With_Atom_Energy_And_Virial(md_info.atom_numbers - solvent_lj.solvent_numbers, md_info.uint_crd, md_info.d_charge, md_info.frc,
-          neighbor_list.d_nl, pme.beta, md_info.need_potential, md_info.d_atom_energy, md_info.need_pressure, md_info.d_atom_virial, pme.d_direct_atom_energy);
+     lj.LJ_NOPME_Direct_Force_With_Atom_Energy_And_Virial(md_info.atom_numbers, md_info.uint_crd, md_info.d_charge, md_info.frc,
+         neighbor_list.d_nl,  md_info.need_potential, md_info.d_atom_energy, md_info.need_pressure, md_info.d_atom_virial);
+  //   lj_soft.LJ_Soft_Core_NOPME_Direct_Force_With_Atom_Energy_And_Virial(md_info.atom_numbers - solvent_lj.solvent_numbers, md_info.uint_crd, md_info.d_charge, md_info.frc,
+   //       neighbor_list.d_nl, pme.beta, md_info.need_potential, md_info.d_atom_energy, md_info.need_pressure, md_info.d_atom_virial, pme.d_direct_atom_energy);
     }
-    solvent_lj.LJ_NOPME_Direct_Force_With_Atom_Energy_And_Virial(md_info.atom_numbers, md_info.res.residue_numbers, md_info.res.d_res_start, md_info.res.d_res_end, md_info.uint_crd, md_info.d_charge,
-      md_info.frc, neighbor_list.d_nl, pme.beta, md_info.need_potential, md_info.d_atom_energy, md_info.need_pressure, md_info.d_atom_virial, pme.d_direct_atom_energy);
+   // solvent_lj.LJ_NOPME_Direct_Force_With_Atom_Energy_And_Virial(md_info.atom_numbers, md_info.res.residue_numbers, md_info.res.d_res_start, md_info.res.d_res_end, md_info.uint_crd, md_info.d_charge,
+   //   md_info.frc, neighbor_list.d_nl, pme.beta, md_info.need_potential, md_info.d_atom_energy, md_info.need_pressure, md_info.d_atom_virial, pme.d_direct_atom_energy);
 
-    lj.Long_Range_Correction(md_info.need_pressure, md_info.sys.d_virial,
-       md_info.need_potential, md_info.sys.d_potential);
+    lj.Long_Range_Correction(md_info.need_pressure, md_info.sys.d_virial, md_info.need_potential, md_info.sys.d_potential);
     lj_soft.Long_Range_Correction(md_info.need_pressure, md_info.sys.d_virial, md_info.need_potential, md_info.sys.d_potential);
     
     // pairwise_force.Compute_Force(neighbor_list.d_nl, md_info.uint_crd, md_info.pbc.uint_dr_to_dr_cof, md_info.nb.cutoff, pme.beta,
@@ -498,26 +495,26 @@ void Main_Print()
         {
             controller.Step_Print("Coulomb", CF_NOPBC.Get_Energy(md_info.pbc.nopbc_crd, md_info.d_charge, md_info.nb.d_excluded_list_start, md_info.nb.d_excluded_list, md_info.nb.d_excluded_numbers), true);
             controller.Step_Print("gb", gb.Get_Energy(md_info.pbc.nopbc_crd, md_info.d_charge), true);
-            controller.Step_Print("LJ", LJ_NOPBC.Get_Energy(md_info.pbc.nopbc_crd, md_info.nb.d_excluded_list_start, md_info.nb.d_excluded_list, md_info.nb.d_excluded_numbers), true);
+         //   controller.Step_Print("LJ", LJ_NOPBC.Get_Energy(md_info.pbc.nopbc_crd, md_info.nb.d_excluded_list_start, md_info.nb.d_excluded_list, md_info.nb.d_excluded_numbers), true);
         }
         else if (!sits.is_initialized)
         {
-            controller.Step_Print("LJ", lj.Get_Energy(md_info.uint_crd, neighbor_list.d_nl, pme.beta, md_info.d_charge, pme.d_direct_atom_energy), true);
-            controller.Step_Print("LJ_soft", lj_soft.Get_Energy(md_info.uint_crd, neighbor_list.d_nl, pme.beta, md_info.d_charge, pme.d_direct_atom_energy), true);
+            controller.Step_Print("LJ", lj.Get_Energy(md_info.uint_crd, neighbor_list.d_nl, true), true);
+       //     controller.Step_Print("LJ_soft", lj_soft.Get_Energy(md_info.uint_crd, neighbor_list.d_nl, pme.beta, md_info.d_charge, pme.d_direct_atom_energy), true);
         }
         else
         {
             sits_dihedral.Get_Energy(md_info.uint_crd, md_info.pbc.uint_dr_to_dr_cof, false);
-            sits.Step_Print(&controller, 1.0 / (CONSTANT_kB * md_info.sys.target_temperature),
-                &lj, &lj_soft, md_info.atom_numbers, md_info.uint_crd, neighbor_list.d_nl,
-                pme.beta, md_info.d_charge, pme.d_direct_atom_energy, md_info.sys.steps, sits_dihedral.d_sigma_of_dihedral_ene);
+      //      sits.Step_Print(&controller, 1.0 / (CONSTANT_kB * md_info.sys.target_temperature),
+     //           &lj, &lj_soft, md_info.atom_numbers, md_info.uint_crd, neighbor_list.d_nl,
+     //           pme.beta, md_info.d_charge, pme.d_direct_atom_energy, md_info.sys.steps, sits_dihedral.d_sigma_of_dihedral_ene);
         }
-        controller.Step_Print(pairwise_force.force_name.c_str(),
-            pairwise_force.Get_Energy(neighbor_list.d_nl, md_info.uint_crd, md_info.pbc.uint_dr_to_dr_cof, md_info.nb.cutoff,
-                pme.beta, md_info.d_charge, pme.d_direct_atom_energy),true);
+     //   controller.Step_Print(pairwise_force.force_name.c_str(),
+         //   pairwise_force.Get_Energy(neighbor_list.d_nl, md_info.uint_crd, md_info.pbc.uint_dr_to_dr_cof, md_info.nb.cutoff,
+         //       pme.beta, md_info.d_charge, pme.d_direct_atom_energy),true);
         soft_walls.Step_Print(&controller, md_info.atom_numbers, md_info.crd);
-        pme.Step_Print(&controller, md_info.uint_crd, md_info.d_charge, neighbor_list.d_nl, md_info.pbc.uint_dr_to_dr_cof,
-            md_info.nb.d_excluded_list_start, md_info.nb.d_excluded_list, md_info.nb.d_excluded_numbers);
+        //pme.Step_Print(&controller, md_info.uint_crd, md_info.d_charge, neighbor_list.d_nl, md_info.pbc.uint_dr_to_dr_cof,
+         //   md_info.nb.d_excluded_list_start, md_info.nb.d_excluded_list, md_info.nb.d_excluded_numbers);
         controller.Step_Print("nb14_LJ", nb14.Get_14_LJ_Energy(md_info.uint_crd, md_info.pbc.uint_dr_to_dr_cof), true);
         controller.Step_Print("nb14_EE", nb14.Get_14_CF_Energy(md_info.uint_crd, md_info.d_charge, md_info.pbc.uint_dr_to_dr_cof), true);
         controller.Step_Print("bond", bond.Get_Energy(md_info.uint_crd, md_info.pbc.uint_dr_to_dr_cof), true);
@@ -587,7 +584,7 @@ void Main_Volume_Change(double factor)
         md_info.nb.d_excluded_numbers, neighbor_list.CONDITIONAL_UPDATE, neighbor_list.FORCED_CHECK);
     lj.Update_Volume(md_info.sys.box_length);
     lj_soft.Update_Volume(md_info.sys.box_length);
-    pme.Update_Volume(md_info.sys.box_length);
+    //pme.Update_Volume(md_info.sys.box_length);
     constrain.Update_Volume(md_info.sys.box_length);
     md_info.mol.Molecule_Crd_Map();
 }
@@ -600,7 +597,7 @@ void Main_Box_Length_Change(VECTOR factor)
         md_info.nb.d_excluded_numbers, neighbor_list.CONDITIONAL_UPDATE, neighbor_list.FORCED_CHECK);
     lj.Update_Volume(md_info.sys.box_length);
     lj_soft.Update_Volume(md_info.sys.box_length);
-    pme.Update_Box_Length(md_info.sys.box_length);
+    //pme.Update_Box_Length(md_info.sys.box_length);
     constrain.Update_Volume(md_info.sys.box_length);
     md_info.mol.Molecule_Crd_Map();
 }
@@ -609,10 +606,10 @@ void Main_Volume_Change_Largely()
 {
     controller.printf("Some modules are based on the meshing methods, and it is more precise to re-initialize these modules now for a long time or a large volume change.\n");
     neighbor_list.Clear();
-    pme.Clear();
+    //pme.Clear();
     neighbor_list.Initial(&controller, md_info.atom_numbers, md_info.sys.box_length, md_info.nb.cutoff, md_info.nb.skin);
     neighbor_list.Neighbor_List_Update(md_info.crd, md_info.nb.d_excluded_list_start, md_info.nb.d_excluded_list, md_info.nb.d_excluded_numbers, 1);
-    pme.Initial(&controller, md_info.atom_numbers, md_info.sys.box_length ,md_info.nb.cutoff );
+    //pme.Initial(&controller, md_info.atom_numbers, md_info.sys.box_length ,md_info.nb.cutoff );
     controller.printf("------------------------------------------------------------------------------------------------------------\n"); 
 }
 
